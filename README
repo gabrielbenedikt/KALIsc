@@ -1,0 +1,9 @@
+KALI Server/Client
+
+A client / server interface for the UQDevices Timetagger16
+
+Using cap'n'proto both for serialized data storage as well as for RPC communication between clients and server.
+
+Very work in progress, the current implementation caps out @ 6ish MHz (the tagger is able to transfer 11MHz over USB2.0)
+
+(Kali is the eponymous Hindu goddess of time)

@@ -1,0 +1,7 @@
+-> documentation
+-> database can have its own class
+-> tagger can have its own class
+-> tui
+-> example client
+-> configuration file
+-> load thresholds
