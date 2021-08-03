@@ -92,6 +92,7 @@ struct jobstruct {
     std::vector<unsigned long long int> events;     // vector holding total events in of corresponding patterns
     unsigned short int window;                      // clients coincidence window
     uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
+    double duration_s;                              // Duration during which thise events occurred (in seconds)
     unsigned long long int start_tag;               // first tag in job
     unsigned long long int stop_tag;                // last tag in job
     bool finished = false;                          // true if job completed

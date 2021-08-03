@@ -7,7 +7,7 @@ struct Job {
     patterns    @1 : List(UInt16);          # List of bitmasks of channels in your desired coincidence pattern
     events      @2 : List(UInt64);          # List of total events in these patterns                                #only in result
     window      @3 : UInt16;                # your coincidence window
-    duration    @4 : UInt16;                # Duration during which thise events occurred seconds
+    duration    @4 : Float64;               # Duration during which thise events occurred seconds
     finished    @5 : Bool           =false; #                                                                       #only in result
     starttag    @6 : UInt64;                #                                                                       #only in result
     stoptag     @7 : UInt64;                #                                                                       #only in result

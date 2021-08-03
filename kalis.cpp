@@ -8,7 +8,7 @@ class TaggerImpl final: public Tagger::Server {
 public:
     kj::Promise<void> savetags(SavetagsContext context) override {
         //savetags        @0 (filename :Text, chans :List(UInt8)          # to a specified filename
-        //                    duration :UInt16)   -> (jobid :UInt64);     # for duration number of seconds
+        //                    duration :double)   -> (jobid :UInt64);     # for duration number of seconds
 
         tagfileinfo tf;
 
@@ -86,7 +86,7 @@ public:
         }
 
         if (send) {
-            payload.setDuration(jobtosend.duration);
+            payload.setDuration(jobtosend.duration_s);
             payload.setErr("");
             payload.setFinished(jobtosend.finished);
             payload.setId(jobtosend.id);
@@ -205,6 +205,7 @@ void print_job(jobstruct &job) {
     }
     std::cout << "wnd: \t" << job.window << "\n";
     std::cout << "duration: \t" << job.duration << "\n";
+    std::cout << "duration: \t" << job.duration_s << " s\n";
     std::cout << "start tag: \t" << job.start_tag << "\n";
     std::cout << "stop tag: \t" << job.stop_tag << "\n";
     std::cout << "finished: \t" << job.finished << "\n";
@@ -407,6 +408,7 @@ int job_from_db(uint64_t id, jobstruct &out_job) {
         out_job.events.emplace_back(evt);
     }
     out_job.duration = reader.getDuration();
+    out_job.duration_s = reader.getDuration() * tagger_info.resolution;
     out_job.finished = reader.getFinished();
     out_job.start_tag = reader.getStarttag();
     out_job.stop_tag = reader.getStoptag();
@@ -451,7 +453,7 @@ int main() {
             menu();
         }
     } else {
-        tt_set_frequency_generator_hz(11000000);
+        tt_set_frequency_generator_hz(1000000);
         start_tag_server();
     }
     return 0;
@@ -1612,7 +1614,6 @@ void fill_bufs() {
     unsigned char *chan;
     long long *time;
     int count = 0;
-    int j = 0;
 
     tagger.StartTimetags();
     while (true) {
@@ -1620,7 +1621,7 @@ void fill_bufs() {
         tagbuf_mtx.lock();
 
         count = tagger.ReadTags(chan, time);
-        std::cout << count << std::endl;
+        //std::cout << count << std::endl;
         std::vector<int> tmp_chan_buf (chan, chan + count);
         std::vector<long long> tmp_tag_buf (time, time + count);
         chan_buf.insert(chan_buf.end(), tmp_chan_buf.begin(), tmp_chan_buf.end());
