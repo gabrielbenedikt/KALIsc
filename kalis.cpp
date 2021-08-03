@@ -6,6 +6,27 @@ using namespace TimeTag;
 
 class TaggerImpl final: public Tagger::Server {
 public:
+    kj::Promise<void> setdelay(SetdelayContext context) override {
+        //setthreshold    @4 (chan: UInt8, voltage: Float32)   -> (msg: Text);
+        uint8_t chan = context.getParams().getChan();
+        double delay = context.getParams().getDelay();
+        int int_delay = round(delay / tagger_info.resolution);
+
+        int err = tt_set_delay(chan, int_delay);
+        context.getResults().setRet(err);
+
+        return kj::READY_NOW;
+    }
+    kj::Promise<void> setthreshold(SetthresholdContext context) override {
+        //setthreshold    @4 (chan: UInt8, voltage: Float32)   -> (msg: Text);
+        uint8_t chan = context.getParams().getChan();
+        double voltage = context.getParams().getVoltage();
+
+        int err = tt_set_input_threshold(chan, voltage);
+        context.getResults().setRet(err);
+
+        return kj::READY_NOW;
+    }
     kj::Promise<void> savetags(SavetagsContext context) override {
         //savetags        @0 (filename :Text, chans :List(UInt8)          # to a specified filename
         //                    duration :double)   -> (jobid :UInt64);     # for duration number of seconds

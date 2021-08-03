@@ -32,9 +32,10 @@ int main() {
 
 void update_screen(jobstruct &job) {
     clear();
+    mvprintw(0,0,"singles");
     for (int i = 0; i<16; ++i) {
-        mvprintw(i, 0, "chn %i: ", i+1);
-        mvprintw(i, 8, "%.2f", job.events[i]/job.duration_s);
+        mvprintw(i+1, 0, "chn %i: ", i+1);
+        mvprintw(i+1, 8, "%.2f", job.events[i]/job.duration_s);
     }
 
     mvprintw(18, 0, "duration: %.2f s", job.duration_s);

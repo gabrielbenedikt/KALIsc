@@ -184,6 +184,7 @@ int tags_to_ns(std::vector<long long> &tags, std::vector<double> &out_ns);
 int read_raw_tags(std::string fname, std::vector<int> &out_chan, std::vector<long long> &out_tags);
 int read_text_tags(std::string fname, std::vector<int> &out_chan, std::vector<long long> &out_tags);
 int average_rate(std::vector<double> &tags);
+uint64_t calc_2f(std::vector<int> &chans, std::vector<long long int> &tags, std::vector<int> &pat_chans, uint16_t window);
 
 //capnproto
 int start_tag_server();         // start capnproto rpc server, aquire tags
