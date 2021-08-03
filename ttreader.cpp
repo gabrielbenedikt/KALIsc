@@ -451,7 +451,7 @@ int main() {
             menu();
         }
     } else {
-        tt_set_frequency_generator_hz(7000000);
+        tt_set_frequency_generator_hz(11000000);
         start_tag_server();
     }
     return 0;
@@ -1035,7 +1035,10 @@ int tt_set_edge_gate_width(int width){
  */
 int tt_read_error_flags(){
     try	{
-        tagger.ReadErrorFlags();
+        int ec = tagger.ReadErrorFlags();
+        if (ec) {
+            printf("\nError code: %i\n", ec);
+        }
     } catch (TimeTag::Exception & ex) {
 		printf ("\nErr: %s\n", ex.GetMessageText().c_str());
         return errno;
@@ -1577,23 +1580,30 @@ int tagbuf_to_cap(TTdata::Builder &plb) {
 }
 
 int start_tag_server() {
+    bool use_two_threads = true;
     if (open_db() != 0) {
         return -1;
     }
 
-    //std::thread fill_bufs_thread(fill_bufs);
-    //std::thread tag_process_thread(process_tags);
-    std::thread tag_process_thread2(process_tags2);
-
-    ::capnp::ReaderOptions opts;
-    opts.traversalLimitInWords = 1.9 * 1024 * 1024 * 1024 ;
-    capnp::EzRpcServer server(kj::heap<TaggerImpl>(), "*", PORT, opts);
-    std::cout << "Listening" << std::endl;
-    kj::NEVER_DONE.wait(server.getWaitScope());
-
-    //fill_bufs_thread.join();
-    //tag_process_thread.join();
-    tag_process_thread2.join();
+    if (use_two_threads) {
+        std::thread fill_bufs_thread(fill_bufs);
+        std::thread tag_process_thread(process_tags);
+        ::capnp::ReaderOptions opts;
+        opts.traversalLimitInWords = 1.9 * 1024 * 1024 * 1024 ;
+        capnp::EzRpcServer server(kj::heap<TaggerImpl>(), "*", PORT, opts);
+        std::cout << "Listening" << std::endl;
+        kj::NEVER_DONE.wait(server.getWaitScope());
+        fill_bufs_thread.join();
+        tag_process_thread.join();
+    } else {
+        std::thread tag_process_thread2(process_tags2);
+        ::capnp::ReaderOptions opts;
+        opts.traversalLimitInWords = 1.9 * 1024 * 1024 * 1024 ;
+        capnp::EzRpcServer server(kj::heap<TaggerImpl>(), "*", PORT, opts);
+        std::cout << "Listening" << std::endl;
+        kj::NEVER_DONE.wait(server.getWaitScope());
+        tag_process_thread2.join();
+    }
 
     return 0;
 }
@@ -1606,45 +1616,38 @@ void fill_bufs() {
 
     tagger.StartTimetags();
     while (true) {
+        tt_read_error_flags();
         tagbuf_mtx.lock();
-        std::cout << "fl\n";
+
         count = tagger.ReadTags(chan, time);
         std::cout << count << std::endl;
-        for (j = 0; j<count; ++j) {
-            chan_buf.insert(chan_buf.end(), (int)chan[j]);
-            tag_buf.insert(tag_buf.end(), time[j]);
-        }
+        std::vector<int> tmp_chan_buf (chan, chan + count);
+        std::vector<long long> tmp_tag_buf (time, time + count);
+        chan_buf.insert(chan_buf.end(), tmp_chan_buf.begin(), tmp_chan_buf.end());
+        tag_buf.insert(tag_buf.end(), tmp_tag_buf.begin(), tmp_tag_buf.end());
+
+        //printf ("count: %i \n len tmp_chan_bf: %li \n len tmp_tag_buf: %li \n", count, tmp_chan_buf.size(), tmp_tag_buf.size());
+
         tagbuf_mtx.unlock();
-        std::cout << "fu"<<std::endl;
-        //give other threads the chance to aquire a lock on the buffer mutex
-        //std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     tagger.StopTimetags();
 }
 
 void process_tags() {
-    //std::cout << " in process_tags" << std::endl;
     bool bufsupdated = false;
     std::vector<int> chans;
     std::vector<long long int> tags;
     while (true) {
         bufsupdated = false;
         tagbuf_mtx.lock();
-        std::cout << "pl"<<std::endl;
         if (chan_buf.size() > 0) {
-            //std::cout << "buffer>0" << std::endl;
-            std::cout << "size of chan_buf: " << chan_buf.size() << "\n";
-            std::cout << "size of tag_buf: " << tag_buf.size() << std::endl;
             chans = chan_buf;
             tags = tag_buf;
-            std::cout << "size of chans: " << chans.size() << "\n";
-            std::cout << "size of tags: " << tags.size() << std::endl;
             chan_buf.clear();
             tag_buf.clear();
             bufsupdated = true;
         }
         tagbuf_mtx.unlock();
-        std::cout << "pu"<<std::endl;
 
         if (bufsupdated) {
             std::cout << "process" << std::endl;
@@ -1662,7 +1665,6 @@ void process_tags() {
                             job->finished = true;
                     }
 
-                    // negative tags suck balls. but this comparison shouls still work
                     for (uint32_t i = 0; i<job->patterns.size(); ++i) {
                         std::vector<uint8_t> pat_chans = helpers::bitmask_to_channels(job->patterns[i]);
                         switch (pat_chans.size()) {
@@ -1839,10 +1841,11 @@ void process_tags2() {
         } catch (std::exception ex) {
             printf ("\nErr: %s\n", ex.what());
         }
-        for (j = 0; j<count; ++j) {
-            chan_buf.insert(chan_buf.end(), (int)chan[j]);
-            tag_buf.insert(tag_buf.end(), time[j]);
-        }
+        std::vector<int> tmp_chan_buf (chan, chan + count);
+        std::vector<long long> tmp_tag_buf (time, time+count);
+
+        chan_buf.insert(chan_buf.end(), tmp_chan_buf.begin(), tmp_chan_buf.end());
+        tag_buf.insert(tag_buf.end(), tmp_tag_buf.begin(), tmp_tag_buf.end());
 
         bufsupdated = chan_buf.size() > 0 ? true : false;
 
@@ -2013,8 +2016,8 @@ void process_tags2() {
             tagqueue_mtx.unlock();
             chan_buf.clear();
             tag_buf.clear();
-            chan_buf.reserve(2000000);
-            tag_buf.reserve(10000000);
+            //chan_buf.reserve(10000000);
+            //tag_buf.reserve (10000000);
         } else {
             // if tagbuf is empty, wait for a few ms to not continuously lock the mutex
             //std::this_thread::sleep_for(std::chrono::milliseconds(100));
