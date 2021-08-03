@@ -1,5 +1,5 @@
-#ifndef TTREADER_H
-#define TTREADER_H
+#ifndef KALISC_H
+#define KALISC_H
 
 // time tagger
 #include "include/CTimeTag.h"
@@ -206,4 +206,4 @@ int open_db();
 void job_to_db(jobstruct &job);                     // save a job to the database
 int job_from_db(uint64_t id, jobstruct &out_job);   // read a job from the database
 
-#endif //TTREADER_H
+#endif //KALISC_H
