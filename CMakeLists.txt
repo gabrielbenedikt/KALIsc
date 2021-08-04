@@ -88,4 +88,4 @@ cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
    endif()
 
    add_custom_target(misc_files ALL
-       SOURCES ttdata.capnp cp_tags.capnp todo.txt)
+       SOURCES ttdata.capnp cp_tags.capnp todo.txt clients/savetags.py tools/capnp_to_tsv.py)

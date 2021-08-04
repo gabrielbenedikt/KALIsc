@@ -18,3 +18,4 @@ ttdata.capnp.c++
 ttdata.capnp.h
 cp_tags.capnp.c++
 cp_tags.capnp.h
+setup_capnp.py
