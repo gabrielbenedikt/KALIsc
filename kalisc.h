@@ -107,7 +107,8 @@ struct tagfileinfo {
     uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
     unsigned long long int start_tag;               // first tag in job
     unsigned long long int stop_tag;                // last tag in job
-    bool converted = false;                         // true if job completed
+    bool converting = false;                        // true if tag file conversion in progress
+    bool converted = false;                         // true if tag file conversion done
     bool finished = false;                          // true if job completed
 };
 std::vector<tagfileinfo> tagfilequeue;
@@ -185,6 +186,7 @@ int read_raw_tags(std::string fname, std::vector<int> &out_chan, std::vector<lon
 int read_text_tags(std::string fname, std::vector<int> &out_chan, std::vector<long long> &out_tags);
 int average_rate(std::vector<double> &tags);
 uint64_t calc_2f(std::vector<int> &chans, std::vector<long long int> &tags, std::vector<int> &pat_chans, uint16_t window);
+void tagfile_converter();
 
 //capnproto
 int start_tag_server();         // start capnproto rpc server, aquire tags

@@ -42,6 +42,7 @@ public:
         tf.stop_tag = 0;
         tf.finished = false;
         tf.converted = false;
+        tf.converting = false;
 
         std::vector<uint8_t> chans;
         for (auto c : context.getParams().getChans()) {
@@ -474,7 +475,7 @@ int main() {
             menu();
         }
     } else {
-        tt_set_frequency_generator_hz(1000000);
+        tt_set_frequency_generator_hz(10000);
         start_tag_server();
     }
     return 0;
@@ -1611,6 +1612,7 @@ int start_tag_server() {
     if (use_two_threads) {
         std::thread fill_bufs_thread(fill_bufs);
         std::thread tag_process_thread(process_tags);
+        std::thread tag_converter_thread(tagfile_converter);
         ::capnp::ReaderOptions opts;
         opts.traversalLimitInWords = 1.9 * 1024 * 1024 * 1024 ;
         capnp::EzRpcServer server(kj::heap<TaggerImpl>(), "*", PORT, opts);
@@ -1642,13 +1644,10 @@ void fill_bufs() {
         tagbuf_mtx.lock();
 
         count = tagger.ReadTags(chan, time);
-        //std::cout << count << std::endl;
         std::vector<int> tmp_chan_buf (chan, chan + count);
         std::vector<long long> tmp_tag_buf (time, time + count);
         chan_buf.insert(chan_buf.end(), tmp_chan_buf.begin(), tmp_chan_buf.end());
         tag_buf.insert(tag_buf.end(), tmp_tag_buf.begin(), tmp_tag_buf.end());
-
-        //printf ("count: %i \n len tmp_chan_bf: %li \n len tmp_tag_buf: %li \n", count, tmp_chan_buf.size(), tmp_tag_buf.size());
 
         tagbuf_mtx.unlock();
     }
@@ -1672,14 +1671,10 @@ void process_tags() {
         tagbuf_mtx.unlock();
 
         if (bufsupdated) {
-            std::cout << "process" << std::endl;
             job_mtx.lock();
-            std::cout << "joblock" << std::endl;
             auto job = jobs.begin();
             while (job != jobs.end()) {
-                //std::cout << "client active? ..." << std::endl;
                 if (!job->finished) {
-                    //std::cout << "client active" << std::endl;
                     int64_t curr_dur = job->stop_tag - job->start_tag;
                     if (job->start_tag == 0) {
                         job->start_tag = tags[0];
@@ -1713,123 +1708,38 @@ void process_tags() {
                     job->stop_tag = tags.back();
                     ++job;
                 } else { // job finished. push to db
-                    std::cout<<"jobtodb"<<std::endl;
                     job_to_db(*job);
-                    std::cout<<"jobtodbdone"<<std::endl;
                     job = jobs.erase(job);
                 }
             }
             job_mtx.unlock();
-            std::cout << "jobunlock" << std::endl;
 
             tagqueue_mtx.lock();
+            //write tags and channels to files
+            //another thread will take care of the conversion to capnproto and compression
             for (auto tagjob = tagfilequeue.begin(); tagjob != tagfilequeue.end(); ++tagjob) {
                 //std::cout << "client active? ..." << std::endl;
                 if (!tagjob->finished) {
                     int64_t curr_dur = tagjob->stop_tag - tagjob->start_tag;
                     if (tagjob->start_tag == 0) {
                         tagjob->start_tag = tags[0];
+                        tagjob->stop_tag = tags[0];
                     // TODO: write note on why ignoring this warning is fine
                     } else if (curr_dur > tagjob->duration) {
                             tagjob->finished = true;
-                    }
-
-                    // TODO: tags to files
-                    std::ofstream ofs_chns (tagjob->filename+raw_chn_ext, std::ifstream::binary | std::ios::app);
-                    std::ofstream ofs_tags (tagjob->filename+raw_tag_ext, std::ifstream::binary | std::ios::app);
-
-                    /*
-                    //save only channels of interest
-                    std::vector<int> idxs;
-                    std::vector<int>::iterator it = chans.begin();
-                    while ((it= std::find_if(it, chans.end(), [&tj](int x){return std::find(tagjob->channels.begin().begin(), tagjob->channels.begin().end(), x; })) != chans.end())
-                    {
-                        idxs.push_back(std::distance(chans.begin(), it));
-                        it++;
-                    }
-                    std::vector<int> chans_to_save;
-                    std::vector<long long int> tags_to_save;
-                    for (auto i : idxs) {
-                        chans_to_save.push_back(chans[i]);
-                        tags_to_save.push_back(tags[i]);
-                    }
-                    */
-                    ofs_chns.write(reinterpret_cast<char*>(&chans[0]), chans.size());
-                    ofs_tags.write(reinterpret_cast<char*>(&tags[0]), tags.size()*sizeof(long long));
-                    ofs_chns.flush();
-                    ofs_tags.flush();
-                    ofs_chns.close();
-                    ofs_tags.close();
-                    tagjob->stop_tag = tags.back();
                     } else {
-                        if (!tagjob->converted) {
-                            //read back full raw tag files
-                            std::ifstream infile_chan (tagjob->filename+raw_chn_ext, std::ifstream::binary | std::ios::ate);
-                            std::ifstream infile_tags (tagjob->filename+raw_tag_ext, std::ifstream::binary | std::ios::ate);
-                            long long count_chan = infile_chan.tellg();
-                            long long count_tags = infile_tags.tellg();
-                            infile_chan.seekg (0, std::ios::beg);
-                            infile_tags.seekg (0, std::ios::beg);
+                        // TODO: tags to files
+                        std::ofstream ofs_chns (tagjob->filename+raw_chn_ext, std::ofstream::binary | std::ios::app);
+                        std::ofstream ofs_tags (tagjob->filename+raw_tag_ext, std::ofstream::binary | std::ios::app);
 
-                            //create buffer
-                            char *chan = new char [count_chan];
-                            long long *time = new long long [count_tags];
-                            infile_chan.read(reinterpret_cast<char*>(&chan[0]),count_chan);
-                            infile_tags.read(reinterpret_cast<char*>(&time[0]),count_tags*sizeof(long long));
-
-                            std::vector<uint8_t> channels = std::vector<uint8_t>(chan, chan+count_chan);
-                            std::vector<long long int> tags = std::vector<long long int>(time, time+count_chan);
-
-                            infile_chan.close();
-                            infile_tags.close();
-                            delete [] chan;
-                            delete [] time;
-
-                            //write compressed capnproto message
-                            ::capnp::MallocMessageBuilder message;
-                            TTdata::Builder ttdata = message.initRoot<TTdata>();
-
-                            // For List(List(UInt8)), List(List((UInt64))
-                            auto cp_chan_outer = ttdata.initChan(1);
-                            auto cp_tags_outer = ttdata.initTag(1);
-
-                            auto chanlist = cp_chan_outer.init(0, channels.size());
-                            auto taglist = cp_tags_outer.init(0, tags.size());
-
-                            for (long unsigned int i=0; i<channels.size(); ++i) {
-                                chanlist.set(i,channels[i]);
-                                taglist.set(i, tags[i]);
-                            }
-
-                            /* For List(UInt8), List(UInt64)
-                            auto cp_chan = ttdata.initChan(channels.size());
-                            auto cp_tags = ttdata.initTag(channels.size());
-
-                            for (long unsigned int i=0; i<channels.size(); ++i) {
-                                cp_chan.set(i, channels[i]);
-                                cp_tags.set(i, tags[i]);
-                            }
-                            */
-
-                            // Instead of writing the message to disk, loading it, compressing it, and writing to disk again,
-                            // compress the message directly and write to disk
-                            auto msg = messageToFlatArray(message);
-                            auto msgarr_c = msg.asChars();
-
-                            boost::iostreams::stream< boost::iostreams::array_source > source (msgarr_c.begin(), msgarr_c.size());
-                            std::ofstream ofs (tagjob->filename+".cpdat.zstd", std::ios::out | std::ios::binary);
-                            boost::iostreams::filtering_streambuf<boost::iostreams::output> outStream;
-                            outStream.push(boost::iostreams::zstd_compressor());
-                            outStream.push(ofs);
-                            boost::iostreams::copy(source, outStream);
-
-                            tagjob->converted = true;
-
-                            std::filesystem::remove(tagjob->filename+raw_chn_ext); // delete file
-                            std::filesystem::remove(tagjob->filename+raw_tag_ext); // delete file
-                        } else {
-
-                        }
+                        ofs_chns.write(reinterpret_cast<char*>(&chans[0]), chans.size()*sizeof(int));
+                        ofs_tags.write(reinterpret_cast<char*>(&tags[0]), tags.size()*sizeof(long long));
+                        ofs_chns.flush();
+                        ofs_tags.flush();
+                        ofs_chns.close();
+                        ofs_tags.close();
+                        tagjob->stop_tag = tags.back();
+                    }
                 }
             }
             tagqueue_mtx.unlock();
@@ -1841,6 +1751,131 @@ void process_tags() {
     std::cout << "exit process tag loop" << std::endl;
 }
 
+void tagfile_converter() {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (auto tagjob = tagfilequeue.begin(); tagjob != tagfilequeue.end(); ++tagjob) {
+            if ((tagjob->finished) && (!tagjob->converted)) {
+                //read back full raw tag files
+                tagjob->converting = true;
+                std::ifstream infile_chan (tagjob->filename+raw_chn_ext, std::ifstream::binary | std::ios::ate);
+                std::ifstream infile_tags (tagjob->filename+raw_tag_ext, std::ifstream::binary | std::ios::ate);
+                long long count_chan = infile_chan.tellg();
+                long long count_tags = infile_tags.tellg();
+                infile_chan.seekg (0, std::ios::beg);
+                infile_tags.seekg (0, std::ios::beg);
+
+                //create buffer
+                char *chan = new char [count_chan];
+                long long *time = new long long [count_tags];
+                infile_chan.read(reinterpret_cast<char*>(&chan[0]),count_chan);
+                infile_tags.read(reinterpret_cast<char*>(&time[0]),count_tags*sizeof(long long));
+
+
+                std::vector<int> channels = std::vector<int>(chan, chan+count_chan);
+                std::vector<long long int> tags = std::vector<long long int>(time, time+count_chan);
+
+
+                infile_chan.close();
+                infile_tags.close();
+                delete [] chan;
+                delete [] time;
+
+
+                infile_chan.close();
+                infile_tags.close();
+
+                std::cout << "list of channels: ";
+                for (auto chan : tagjob->channels) {
+                    std::cout << unsigned(chan) << ", ";
+                }
+                std::cout << std::endl;
+
+                std::cout << "all chan size: " << channels.size() << std::endl;
+                std::cout << "all tags size: " << tags.size() << std::endl;
+
+                //keep only events from channels that are specified in the jobinfo
+                std::vector<int> chans_to_save;
+                std::vector<long long int> tags_to_save;
+                /*
+                if (tagjob->channels.size()!=0) {
+                    auto lambda_chan_in_chan_list = [&](uint8_t chan){ return (std::find(tagjob->channels.begin(), tagjob->channels.end(), chan) != tagjob->channels.end()); };
+                    auto num_elements = std::count_if( channels.begin(), channels.end(), lambda_chan_in_chan_list );
+                    chans_to_save.reserve(num_elements);
+                    tags_to_save.reserve(num_elements);
+                    std::copy_if( channels.begin(), channels.end(), std::back_inserter( chans_to_save ), lambda_chan_in_chan_list );
+                    //std::copy_if( tags.begin(), tags.end(), std::back_inserter( tags_to_save ), lambda_chan_in_chan_list );
+                    //how to get this working with tags_to_save?
+                } else {
+                    chans_to_save = channels;
+                    tags_to_save = tags;
+                }
+                */
+                std::vector<bool> idx (channels.size());
+                if (tagjob->channels.size()!=0){
+                    for (size_t i = 0; i < channels.size(); ++i) {
+                        if (std::find(tagjob->channels.begin(), tagjob->channels.end(), channels[i]) != tagjob->channels.end()) {
+                            chans_to_save.emplace_back(channels[i]);
+                            tags_to_save.emplace_back(tags[i]);
+                        }
+                    }
+                } else {
+                    chans_to_save = channels;
+                    tags_to_save = tags;
+                }
+
+                //chans_to_save = channels;
+                //tags_to_save = tags;
+                std::cout << "trunc chan size: " << chans_to_save.size() << std::endl;
+                std::cout << "trunc tags size: " << tags_to_save.size() << std::endl;
+
+                //write compressed capnproto message
+                ::capnp::MallocMessageBuilder message;
+                TTdata::Builder ttdata = message.initRoot<TTdata>();
+
+                // For List(List(UInt8)), List(List((UInt64))
+                auto cp_chan_outer = ttdata.initChan(1);
+                auto cp_tags_outer = ttdata.initTag(1);
+
+                auto chanlist = cp_chan_outer.init(0, chans_to_save.size());
+                auto taglist = cp_tags_outer.init(0, tags_to_save.size());
+
+                for (long unsigned int i=0; i<chans_to_save.size(); ++i) {
+                    chanlist.set(i,chans_to_save[i]);
+                    taglist.set(i, tags_to_save[i]);
+                }
+
+                // compress the message and write to disk
+                auto msg = messageToFlatArray(message);
+                auto msgarr_c = msg.asChars();
+
+                boost::iostreams::stream< boost::iostreams::array_source > source (msgarr_c.begin(), msgarr_c.size());
+                std::ofstream ofs (tagjob->filename+".cpdat.zstd", std::ios::out | std::ios::binary);
+                boost::iostreams::filtering_streambuf<boost::iostreams::output> outStream;
+                outStream.push(boost::iostreams::zstd_compressor());
+                outStream.push(ofs);
+                boost::iostreams::copy(source, outStream);
+
+                tagjob->converted = true;
+
+                std::filesystem::remove(tagjob->filename+raw_chn_ext); // delete file
+                std::filesystem::remove(tagjob->filename+raw_tag_ext); // delete file
+            }
+        }
+
+        //remove completed jobs from queue
+        tagqueue_mtx.lock();
+        auto job = tagfilequeue.begin();
+        while (job != tagfilequeue.end()) {
+            if (job->converted) {
+                job = tagfilequeue.erase(job);
+            } else {
+                ++job;
+            }
+        }
+        tagqueue_mtx.unlock();
+    }
+}
 
 void process_tags2() {
 
@@ -2004,16 +2039,6 @@ void process_tags2() {
                                 taglist.set(i, tags[i]);
                             }
 
-                            /* For List(UInt8), List(UInt64)
-                            auto cp_chan = ttdata.initChan(channels.size());
-                            auto cp_tags = ttdata.initTag(channels.size());
-
-                            for (long unsigned int i=0; i<channels.size(); ++i) {
-                                cp_chan.set(i, channels[i]);
-                                cp_tags.set(i, tags[i]);
-                            }
-                            */
-
                             // Instead of writing the message to disk, loading it, compressing it, and writing to disk again,
                             // compress the message directly and write to disk
                             auto msg = messageToFlatArray(message);
@@ -2038,8 +2063,6 @@ void process_tags2() {
             tagqueue_mtx.unlock();
             chan_buf.clear();
             tag_buf.clear();
-            //chan_buf.reserve(10000000);
-            //tag_buf.reserve (10000000);
         } else {
             // if tagbuf is empty, wait for a few ms to not continuously lock the mutex
             //std::this_thread::sleep_for(std::chrono::milliseconds(100));
