@@ -1434,6 +1434,7 @@ void process_tags() {
                             job->finished = true;
                     }
 
+                    #pragma omp parallel for
                     for (uint32_t i = 0; i<job->patterns.size(); ++i) {
                         std::vector<uint8_t> pat_chans = helpers::bitmask_to_channels(job->patterns[i]);
                         switch (pat_chans.size()) {
