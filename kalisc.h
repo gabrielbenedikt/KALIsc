@@ -6,7 +6,8 @@
 #include "include/CLogic.h"
 
 // database
-#include <sqlite3.h>
+#include "kalidb.h"
+#include "kali_structs.h"
 
 // usefull stuff
 #include "helpers.h"
@@ -31,10 +32,10 @@
 #include <math.h>     
 #include <mutex>        // making tagbuffer threadsafe
 #include <random>
-#include <signal.h>     
+#include <signal.h>
 #include <sys/stat.h>   
 #include <stdio.h>      
-#include <stdlib.h>     
+#include <stdlib.h>
 #include <thread>       
 #include <unistd.h>     
 #include <vector>
@@ -50,15 +51,7 @@
 #include <boost/iostreams/filter/zstd.hpp>
 #include <zstd.h>
 
-// stream to base64 encoding
-#include <boost/iostreams/device/array.hpp>
-#include <boost/archive/iterators/base64_from_binary.hpp>
-#include <boost/archive/iterators/binary_from_base64.hpp>
-#include <boost/archive/iterators/transform_width.hpp>
-#include <boost/archive/iterators/insert_linebreaks.hpp>
-#include <boost/archive/iterators/remove_whitespace.hpp>
-typedef boost::archive::iterators::transform_width< boost::archive::iterators::binary_from_base64<std::string::const_iterator >, 8, 6 > it_binary_t;
-typedef boost::archive::iterators::base64_from_binary<boost::archive::iterators::transform_width<std::string::const_iterator ,6,8> > it_base64_t;
+tagger_info_struct tagger_info;
 
 // file extensions
 std::string raw_chn_ext = "_.rawchn";   // for temporary file holding channels
@@ -75,7 +68,7 @@ std::vector<long long> tag_buf;
 std::mutex tagbuf_mtx;
 
 // database
-sqlite3* DB;
+kalidb DB;
 
 // rpc return codes
 enum returncodes: int8_t {
@@ -86,31 +79,10 @@ enum returncodes: int8_t {
 };
 
 //
-struct jobstruct {
-    uint64_t id = 0;                                // numeric ID of the job
-    std::vector<unsigned short int> patterns;       // list of bitmasks of coincidence patterns client is interested in
-    std::vector<unsigned long long int> events;     // vector holding total events in of corresponding patterns
-    unsigned short int window;                      // clients coincidence window
-    uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
-    double duration_s;                              // Duration during which thise events occurred (in seconds)
-    unsigned long long int start_tag;               // first tag in job
-    unsigned long long int stop_tag;                // last tag in job
-    bool finished = false;                          // true if job completed
-};
+
 std::vector<jobstruct> jobs;
 std::mutex job_mtx;              // job vector
 
-struct tagfileinfo {
-    uint64_t id = 0;                                // numeric ID of the job
-    std::string filename;                           // filename to save tags to
-    std::vector<uint8_t> channels;                  // channels to save
-    uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
-    unsigned long long int start_tag;               // first tag in job
-    unsigned long long int stop_tag;                // last tag in job
-    bool converting = false;                        // true if tag file conversion in progress
-    bool converted = false;                         // true if tag file conversion done
-    bool finished = false;                          // true if job completed
-};
 std::vector<tagfileinfo> tagfilequeue;
 std::mutex tagqueue_mtx;
 
@@ -121,12 +93,6 @@ int menu();
 int print_info();
 void kbd_interrupt();
 bool kbd_stop = false;
-
-struct tagger_info_struct {
-    int fpga_version;
-    float resolution;
-    int num_inputs;
-} tagger_info;
 
 // catching ctrl+c
 void signal_handler(int s);
@@ -203,11 +169,8 @@ int tagbuf_to_cap(TTdata::Builder &plb);
 uint64_t add_job(const Job::Reader &reader);    // add a job to the joblist
 void del_job(uint64_t id);                      // remove a job from the joblist
 void print_job(jobstruct &job);                 // print job info
-uint64_t getnewid();                            // get a new measrement id
 
-// database
-int open_db();
-void job_to_db(jobstruct &job);                     // save a job to the database
-int job_from_db(uint64_t id, jobstruct &out_job);   // read a job from the database
+//misc
+uint64_t get_new_id();
 
 #endif //KALISC_H

@@ -47,7 +47,7 @@ cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
    capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS ttdata.capnp cp_tags.capnp)
    
    # KALIs - server
-   set(kalis_sources "helpers.cpp" "kalis.cpp" "kalisc.h")
+   set(kalis_sources "helpers.cpp" "kali_structs.h" "kalidb.h" "kalidb.cpp" "kalis.cpp" "kalisc.h")
    add_executable(kalis ${kalis_sources} ${CAPNP_SRCS})
    set_property(TARGET kalis PROPERTY CXX_STANDARD 20)
    target_link_libraries(kalis ${PROTOBUF_LIBRARY} OpenMP::OpenMP_CXX libtimetag64.so ${LIBUSB_1_LIBRARIES} ${libusb-1.0__LIBS} usb-1.0 CapnProto::capnp CapnProto::capnp-rpc ${ZSTD_LIBRARIES} Boost::iostreams ${SQLite3_LIBRARIES})
