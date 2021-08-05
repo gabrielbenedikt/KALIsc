@@ -1442,41 +1442,6 @@ void process_tags() {
                             break;
 
                         case 2: {
-#if 0
-                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution); //convert coincidence window from ns to internal ticks
-                            std::vector<long long int> chn1, chn2;
-                            for (size_t i = 0; i < chans.size(); ++i) {
-                                if (chans[i] == pat_chans[0]) {
-                                    chn1.push_back(tags[i]);
-                                } else if (chans[i] == pat_chans[1]) {
-                                    chn2.push_back(tags[i]);
-                                }
-                            }
-
-                            uint64_t cnt = 0;
-                            size_t ii = 0;
-                            for (size_t i = 0; i < chn1.size(); ++i) {
-                                while (chn1[i] > chn2[ii]) {
-                                    if (ii > chn2.size()) {
-                                        break;
-                                    } else {
-                                        ++ii;
-                                    }
-                                }
-                                if (chn1[i] < chn2[ii]) {
-                                    if (chn1[i] + wnd > chn2[ii]) {
-                                        ++ii;
-                                        ++cnt;
-                                    }
-                                }
-                                if (ii > chn2.size()) {
-                                    break;
-                                }
-                            }
-
-                            job->events[i] += cnt;
-#endif
-#if 1
                             // round tags to resolution bins
                             uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
                             std::vector<long long int> chn1, chn2;
@@ -1492,30 +1457,250 @@ void process_tags() {
                             std::vector<long long int> cc_tags = {};
                             cc_tags.reserve(4096);
                             if (chn1.size() > chn2.size()) {
-                                set_intersection(chn1.begin(), chn1.end(),
-                                                 chn2.begin(), chn2.end(),
-                                                 std::back_inserter(cc_tags));
+                                std::set_intersection(chn1.begin(), chn1.end(),
+                                                     chn2.begin(), chn2.end(),
+                                                     std::back_inserter(cc_tags));
                             } else {
-                                set_intersection(chn2.begin(), chn2.end(),
-                                                 chn1.begin(), chn1.end(),
-                                                 std::back_inserter(cc_tags));
+                                std::set_intersection(chn2.begin(), chn2.end(),
+                                                     chn1.begin(), chn1.end(),
+                                                     std::back_inserter(cc_tags));
                             }
 
                             job->events[i] += cc_tags.size();
-#endif
                         }
                         break;
                         case 3:
-                            //calc_3f();
+                        {
+                            // round tags to resolution bins
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
+                            std::vector<long long int> chn1, chn2, chn3;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[2]) {
+                                    chn3.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                }
+                            }
+
+                            //find coincidences
+                            std::vector<long long int> c2_tags = {};
+                            std::vector<long long int> c3_tags = {};
+                            c2_tags.reserve(4096);
+                            c3_tags.reserve(4096);
+                            size_t size1 = chn1.size();
+                            size_t size2 = chn2.size();
+                            if (size1 > size2) {
+                                std::set_intersection(chn1.begin(), chn1.end(),
+                                                     chn2.begin(), chn2.end(),
+                                                     std::back_inserter(c2_tags));
+                            } else {
+                               std::set_intersection(chn2.begin(), chn2.end(),
+                                                     chn1.begin(), chn1.end(),
+                                                     std::back_inserter(c2_tags));
+                            }
+
+                            std::set_intersection(chn3.begin(), chn3.end(),
+                                                 c2_tags.begin(), c2_tags.end(),
+                                                 std::back_inserter(c3_tags));
+
+                            job->events[i] += c3_tags.size();
+                        }
                         break;
                         case 4:
-                            //calc_4f();
+                        {
+                            // round tags to resolution bins
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
+                            std::vector<long long int> chn1, chn2, chn3, chn4;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[2]) {
+                                    chn3.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[3]) {
+                                    chn4.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                }
+                            }
+
+                            //find coincidences
+                            std::vector<long long int> cc12_tags = {};
+                            std::vector<long long int> cc34_tags = {};
+                            std::vector<long long int> c4_tags = {};
+                            cc12_tags.reserve(4096);
+                            cc34_tags.reserve(4096);
+                            c4_tags.reserve(4096);
+                            size_t size1 = chn1.size();
+                            size_t size2 = chn2.size();
+                            size_t size3 = chn3.size();
+                            size_t size4 = chn4.size();
+                            if (size1 > size2) {
+                                std::set_intersection(chn1.begin(), chn1.end(),
+                                                     chn2.begin(), chn2.end(),
+                                                     std::back_inserter(cc12_tags));
+                            } else {
+                                std::set_intersection(chn2.begin(), chn2.end(),
+                                                     chn1.begin(), chn1.end(),
+                                                     std::back_inserter(cc12_tags));
+                            }
+                            if (size3 > size4) {
+                                std::set_intersection(chn3.begin(), chn3.end(),
+                                                     chn4.begin(), chn4.end(),
+                                                     std::back_inserter(cc34_tags));
+                            } else {
+                                std::set_intersection(chn4.begin(), chn4.end(),
+                                                     chn3.begin(), chn3.end(),
+                                                     std::back_inserter(cc34_tags));
+                            }
+
+                            std::set_intersection(cc12_tags.begin(), cc12_tags.end(),
+                                                 cc34_tags.begin(), cc34_tags.end(),
+                                                 std::back_inserter(c4_tags));
+
+                            job->events[i] += c4_tags.size();
+                        }
                         break;
                         case 5:
-                            //calc_5f();
+                        {
+                            // round tags to resolution bins
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
+                            std::vector<long long int> chn1, chn2, chn3, chn4, chn5, chn6;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[2]) {
+                                    chn3.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[3]) {
+                                    chn4.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[4]) {
+                                    chn5.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[5]) {
+                                    chn6.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                }
+                            }
+
+                            //find coincidences
+                            std::vector<long long int> cc12_tags = {};
+                            std::vector<long long int> cc34_tags = {};
+                            std::vector<long long int> c1234_tags = {};
+                            std::vector<long long int> c5_tags = {};
+                            cc12_tags.reserve(4096);
+                            cc34_tags.reserve(4096);
+                            c1234_tags.reserve(4096);
+                            c5_tags.reserve(4096);
+                            size_t size1 = chn1.size();
+                            size_t size2 = chn2.size();
+                            size_t size3 = chn3.size();
+                            size_t size4 = chn4.size();
+                            if (size1 > size2) {
+                                std::set_intersection(chn1.begin(), chn1.end(),
+                                                     chn2.begin(), chn2.end(),
+                                                     std::back_inserter(cc12_tags));
+                            } else {
+                                std::set_intersection(chn2.begin(), chn2.end(),
+                                                     chn1.begin(), chn1.end(),
+                                                     std::back_inserter(cc12_tags));
+                            }
+                            if (size3 > size4) {
+                                std::set_intersection(chn3.begin(), chn3.end(),
+                                                     chn4.begin(), chn4.end(),
+                                                     std::back_inserter(cc34_tags));
+                            } else {
+                                std::set_intersection(chn4.begin(), chn4.end(),
+                                                     chn3.begin(), chn3.end(),
+                                                     std::back_inserter(cc34_tags));
+                            }
+                            std::set_intersection(cc12_tags.begin(), cc12_tags.end(),
+                                                 cc34_tags.begin(), cc34_tags.end(),
+                                                 std::back_inserter(c1234_tags));
+
+                            std::set_intersection(chn5.begin(), chn5.end(),
+                                                 c1234_tags.begin(), c1234_tags.end(),
+                                                 std::back_inserter(c5_tags));
+
+                            job->events[i] += c5_tags.size();
+                        }
                         break;
                         case 6:
-                            //calc_6f();
+                        {
+                            // round tags to resolution bins
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
+                            std::vector<long long int> chn1, chn2, chn3, chn4, chn5, chn6;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[2]) {
+                                    chn3.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[3]) {
+                                    chn4.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[4]) {
+                                    chn5.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[5]) {
+                                    chn6.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                }
+                            }
+
+                            //find coincidences
+                            std::vector<long long int> cc12_tags = {};
+                            std::vector<long long int> cc34_tags = {};
+                            std::vector<long long int> cc56_tags = {};
+                            std::vector<long long int> c1234_tags = {};
+                            std::vector<long long int> c6_tags = {};
+                            cc12_tags.reserve(4096);
+                            cc34_tags.reserve(4096);
+                            cc56_tags.reserve(4096);
+                            c1234_tags.reserve(4096);
+                            c6_tags.reserve(4096);
+                            size_t size1 = chn1.size();
+                            size_t size2 = chn2.size();
+                            size_t size3 = chn3.size();
+                            size_t size4 = chn4.size();
+                            size_t size5 = chn5.size();
+                            size_t size6 = chn6.size();
+                            if (size1 > size2) {
+                                std::set_intersection(chn1.begin(), chn1.end(),
+                                                     chn2.begin(), chn2.end(),
+                                                     std::back_inserter(cc12_tags));
+                            } else {
+                                std::set_intersection(chn2.begin(), chn2.end(),
+                                                     chn1.begin(), chn1.end(),
+                                                     std::back_inserter(cc12_tags));
+                            }
+                            if (size3 > size4) {
+                                std::set_intersection(chn3.begin(), chn3.end(),
+                                                     chn4.begin(), chn4.end(),
+                                                     std::back_inserter(cc34_tags));
+                            } else {
+                                std::set_intersection(chn4.begin(), chn4.end(),
+                                                     chn3.begin(), chn3.end(),
+                                                     std::back_inserter(cc34_tags));
+                            }
+                            if (size5 > size6) {
+                                std::set_intersection(chn5.begin(), chn5.end(),
+                                                     chn6.begin(), chn6.end(),
+                                                     std::back_inserter(cc56_tags));
+                            } else {
+                                std::set_intersection(chn6.begin(), chn6.end(),
+                                                     chn5.begin(), chn5.end(),
+                                                     std::back_inserter(cc56_tags));
+                            }
+
+                            std::set_intersection(cc12_tags.begin(), cc12_tags.end(),
+                                                 cc34_tags.begin(), cc34_tags.end(),
+                                                 std::back_inserter(c1234_tags));
+
+                            std::set_intersection(cc56_tags.begin(), cc56_tags.end(),
+                                                 c1234_tags.begin(), c1234_tags.end(),
+                                                 std::back_inserter(c6_tags));
+
+                            job->events[i] += c6_tags.size();
+                        }
                         break;
                         }
                     }
