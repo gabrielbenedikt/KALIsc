@@ -138,7 +138,6 @@ int convert_raw_tags(std::string infname, std::string outfname);
 int test_tag_functions();
 void fill_bufs();                       // fill chan_buf and tag_buf with random data
 void process_tags();                    // get singles and events of patterns that are requested by connected clients
-void process_tags2();
 int tags_to_ns(std::vector<long long> &tags, std::vector<double> &out_ns);
 int read_raw_tags(std::string fname, std::vector<int> &out_chan, std::vector<long long> &out_tags);
 int read_text_tags(std::string fname, std::vector<int> &out_chan, std::vector<long long> &out_tags);
