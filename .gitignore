@@ -1,4 +1,8 @@
 *.o
+*.bak
+client/build/
+a.out
+build.sh
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles

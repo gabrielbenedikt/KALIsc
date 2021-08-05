@@ -1,4 +1,0 @@
--> documentation
--> tagger can have its own class
--> tui
--> configuration file
