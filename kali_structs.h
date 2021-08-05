@@ -22,7 +22,7 @@ struct jobstruct {
     uint64_t id = 0;                                // numeric ID of the job
     std::vector<unsigned short int> patterns;       // list of bitmasks of coincidence patterns client is interested in
     std::vector<unsigned long long int> events;     // vector holding total events in of corresponding patterns
-    unsigned short int window;                      // clients coincidence window
+    unsigned short int window;                      // clients coincidence window in ns
     uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
     double duration_s;                              // Duration during which thise events occurred (in seconds)
     unsigned long long int start_tag;               // first tag in job

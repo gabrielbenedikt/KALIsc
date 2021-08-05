@@ -7,6 +7,8 @@
 
 // database
 #include "kalidb.h"
+
+//structs
 #include "kali_structs.h"
 
 // usefull stuff

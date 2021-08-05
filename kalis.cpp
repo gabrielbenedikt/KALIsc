@@ -223,6 +223,7 @@ uint64_t add_job(const Job::Reader &reader) {
 
     job.events.resize(job.patterns.size(), 0);
     job.window = reader.getWindow();
+    job.duration_s = reader.getDuration();
     job.duration = ceil(reader.getDuration() / tagger_info.resolution); // convert from seconds to internal ticks
     job.start_tag = 0;
     job.stop_tag = 0;
@@ -1432,6 +1433,7 @@ void process_tags() {
                 if (!job->finished) {
                     if (job->start_tag == 0) {
                         job->start_tag = tags[0];
+                        job->stop_tag = tags[0];
                     }
                     uint64_t curr_dur = job->stop_tag - job->start_tag;
                     if (curr_dur > job->duration) {
@@ -1444,21 +1446,55 @@ void process_tags() {
                         case 1:
                             job->events[i] += std::count(chans.begin(), chans.end(), pat_chans[0]);
                             break;
-                        case 2:
-                            //calc_2f();
-                            break;
+
+                        case 2: {
+
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution); //convert coincidence window from ns to internal ticks
+                            std::vector<long long int> chn1, chn2;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(tags[i]);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(tags[i]);
+                                }
+                            }
+
+                            uint64_t cnt = 0;
+                            size_t ii = 0;
+                            for (size_t i = 0; i < chn1.size(); ++i) {
+                                while (chn1[i] > chn2[ii]) {
+                                    if (ii > chn2.size()) {
+                                        break;
+                                    } else {
+                                        ++ii;
+                                    }
+                                }
+                                if (chn1[i] < chn2[ii]) {
+                                    if (chn1[i] + wnd > chn2[ii]) {
+                                        ++ii;
+                                        ++cnt;
+                                    }
+                                }
+                                if (ii > chn2.size()) {
+                                    break;
+                                }
+                            }
+
+                            job->events[i] += cnt;
+                        }
+                        break;
                         case 3:
                             //calc_3f();
-                            break;
+                        break;
                         case 4:
                             //calc_4f();
-                            break;
+                        break;
                         case 5:
                             //calc_5f();
-                            break;
+                        break;
                         case 6:
                             //calc_6f();
-                            break;
+                        break;
                         }
                     }
                     job->stop_tag = tags.back();

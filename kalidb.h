@@ -2,7 +2,7 @@
 #define KALIDB_H
 
 #include <sqlite3.h>
-#include <stdint.h>     //uintX_t
+#include <cstdint>     //uintX_t
 #include <vector>       //std::vector
 #include <string>       //std::string
 #include <iostream>     //cout

@@ -14,7 +14,7 @@ int main() {
     uint64_t i=0;
     while (true) {
         jobstruct job;
-        jobid = submit_job(0.5);
+        jobid = submit_job(1);
         while (query_job_done(jobid) == returncodes::NOT_DONE) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -33,12 +33,17 @@ int main() {
 void update_screen(jobstruct &job) {
     clear();
     mvprintw(0,0,"singles");
-    for (int i = 0; i<16; ++i) {
+    for (uint8_t i = 0; i<16; ++i) {
         mvprintw(i+1, 0, "chn %i: ", i+1);
         mvprintw(i+1, 8, "%.2f", job.events[i]/job.duration_s);
     }
 
-    mvprintw(18, 0, "duration: %.2f s", job.duration_s);
+    for (size_t i = 16; i<job.patterns.size(); ++i) {
+        mvprintw(i+1, 0, "pat %i: ", i+1);
+        mvprintw(i+1, 8, "%.2f", job.events[i]/job.duration_s);
+    }
+
+    mvprintw(job.patterns.size()+3, 0, "duration: %.2f s", job.duration_s);
     refresh();
 }
 
@@ -91,8 +96,8 @@ uint64_t submit_job(double duration) {
 
     auto jobdef = request.getJob();
     jobdef.setDuration(duration);
-    jobdef.setWindow(120);
-    auto pats = jobdef.initPatterns(16);
+    jobdef.setWindow(10);
+    auto pats = jobdef.initPatterns(17);
     pats.set(0,  helpers::channels_to_bitmask(std::vector<uint8_t>{1}));
     pats.set(1,  helpers::channels_to_bitmask(std::vector<uint8_t>{2}));
     pats.set(2,  helpers::channels_to_bitmask(std::vector<uint8_t>{3}));
@@ -109,6 +114,9 @@ uint64_t submit_job(double duration) {
     pats.set(13, helpers::channels_to_bitmask(std::vector<uint8_t>{14}));
     pats.set(14, helpers::channels_to_bitmask(std::vector<uint8_t>{15}));
     pats.set(15, helpers::channels_to_bitmask(std::vector<uint8_t>{16}));
+
+    pats.set(16,  helpers::channels_to_bitmask(std::vector<uint8_t>{8, 12}));
+
 
     auto response = request.send().wait(client.getWaitScope());
     uint64_t jobid = response.getJobid();
