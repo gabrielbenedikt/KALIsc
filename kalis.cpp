@@ -1193,11 +1193,6 @@ void write_capnp_tags(std::string fname, std::vector<int> &channels, std::vector
     ::capnp::MallocMessageBuilder message;
     TTdata::Builder ttdata = message.initRoot<TTdata>();
     
-    // for List(type)
-    //auto cp_chan = ttdata.initChan(channels.size());
-    //auto cp_tags = ttdata.initTag(channels.size());
-    //for List(List(type))
-
     // For List(List(UInt8)), List(List((UInt64))
     auto cp_chan_outer = ttdata.initChan(1);
     auto cp_tags_outer = ttdata.initTag(1);
@@ -1233,14 +1228,7 @@ void read_capnp_tags(std::string fname, std::vector<int> &out_chan, std::vector<
     close(fd);
 
     TTdata::Reader ttdata = message.getRoot<TTdata>();
-    /*List(type)
-    for (int chan : ttdata.getChan()) {
-        out_chan.emplace_back(chan);
-    }
-    for (long long tag : ttdata.getTag()) {
-        out_tags.emplace_back(tag);
-    }
-    */
+
     //List(List(type))
     for (size_t i = 0; i < ttdata.getChan().size(); ++i){
         for (int chan : ttdata.getChan()[i]) {
@@ -1261,10 +1249,6 @@ void write_capnp_tags_compressed(std::string fname, std::vector<int> &channels, 
     ::capnp::MallocMessageBuilder message;
     TTdata::Builder ttdata = message.initRoot<TTdata>();
     
-    /*List(type)
-    auto cp_chan = ttdata.initChan(channels.size());
-    auto cp_tags = ttdata.initTag(channels.size());
-    */
     //List(List(type))
     auto cp_chan_outer = ttdata.initChan(1);
     auto cp_tags_outer = ttdata.initTag(1);
@@ -1274,9 +1258,8 @@ void write_capnp_tags_compressed(std::string fname, std::vector<int> &channels, 
         cp_chan.set(i, channels[i]);
         cp_tags.set(i, tags[i]);
     }
-    
-    // Instead of writing the message to disk, loading it, compressing it, and writing to disk again,
-    // compress the message directly and write to disk
+
+    // compress the message and write to disk
     auto msg = messageToFlatArray(message);
     auto msgarr_c = msg.asChars();
 
@@ -1319,14 +1302,8 @@ void read_capnp_tags_compressed(std::string fname, std::vector<int> &out_chan, s
     kj::ArrayPtr<capnp::word> words(reinterpret_cast<capnp::word*>(buf), size / sizeof(char));
     ::capnp::FlatArrayMessageReader message(words, opts);
     TTdata::Reader ttdata = message.getRoot<TTdata>();
-    /*List(type)
-    for (int chan : ttdata.getChan()) {
-        out_chan.emplace_back(chan);
-    }
-    for (long long tag : ttdata.getTag()) {
-        out_tags.emplace_back(tag);
-    }
-    */
+
+
     //List(List(type))
     for (size_t i=0; i<ttdata.getChan().size(); ++i){
         for (int chan : ttdata.getChan()[i]) {
@@ -1336,20 +1313,10 @@ void read_capnp_tags_compressed(std::string fname, std::vector<int> &out_chan, s
             out_tags.emplace_back(tag);
         }
     }
-    // This gives a double-free error. Maybe delete[] is happening somewhere in kj
-    // I'll leave it as comment here bcs it's not obvious that it's right NOT to do it
-    // Or maybe it's supposed to be here and debugging pointed me in the wrong direction.
     delete [] buf;
 }
 
 int send_tags_over_net () {
-    // get tags
-    // build message
-    // compress
-    // send
-    
-    
-    
     // catch keyboard events
     unsigned char *chan;
     long long *time;
@@ -1370,10 +1337,6 @@ int send_tags_over_net () {
         std::copy(chan, chan+count, std::back_inserter(chan_buf));
         std::copy(time, time+count, std::back_inserter(tag_buf));
         tagbuf_mtx.unlock();
-        //printf("elements in chan_buf: %li \t elements in tag_buf: %li\n", chan_buf.size(), tag_buf.size());
-        //printf("chan_buf.back: %i \t tag_buf.back(): %lli\n", chan_buf.back(), tag_buf.back());
-        
-        // buffer will be sent and emptied on request
         
     }
     std::ios_base::sync_with_stdio(true);
@@ -1387,16 +1350,7 @@ int send_tags_over_net () {
 
 int tagbuf_to_cap(TTdata::Builder &plb) {
     tagbuf_mtx.lock();
-    
-    /*List(type)
-    auto cp_chan = plb.initChan(chan_buf.size());
-    auto cp_tags = plb.initTag(chan_buf.size());
-    
-    for (long unsigned int i=0; i<chan_buf.size(); ++i) {
-        cp_chan.set(i, chan_buf[i]);
-        cp_tags.set(i, tag_buf[i]);
-    }
-    */
+
     //List(List(type))
     auto cp_chan_outer = plb.initChan(1);
     auto cp_tags_outer = plb.initTag(1);
@@ -1584,53 +1538,31 @@ void tagfile_converter() {
                 delete [] chan;
                 delete [] time;
 
-
                 infile_chan.close();
                 infile_tags.close();
-
-                std::cout << "list of channels: ";
-                for (auto chan : tagjob->channels) {
-                    std::cout << unsigned(chan) << ", ";
-                }
-                std::cout << std::endl;
-
-                std::cout << "all chan size: " << channels.size() << std::endl;
-                std::cout << "all tags size: " << tags.size() << std::endl;
 
                 //keep only events from channels that are specified in the jobinfo
                 std::vector<int> chans_to_save;
                 std::vector<long long int> tags_to_save;
-                /*
-                if (tagjob->channels.size()!=0) {
-                    auto lambda_chan_in_chan_list = [&](uint8_t chan){ return (std::find(tagjob->channels.begin(), tagjob->channels.end(), chan) != tagjob->channels.end()); };
-                    auto num_elements = std::count_if( channels.begin(), channels.end(), lambda_chan_in_chan_list );
-                    chans_to_save.reserve(num_elements);
-                    tags_to_save.reserve(num_elements);
-                    std::copy_if( channels.begin(), channels.end(), std::back_inserter( chans_to_save ), lambda_chan_in_chan_list );
-                    //std::copy_if( tags.begin(), tags.end(), std::back_inserter( tags_to_save ), lambda_chan_in_chan_list );
-                    //how to get this working with tags_to_save?
+
+                std::vector<uint8_t> chn_list;
+                if (tagjob->channels.size()!=0){
+                    for (uint8_t i = 0; i<tagjob->channels.size(); ++i) {
+                        chn_list.push_back(tagjob->channels[i]);
+                    }
                 } else {
-                    chans_to_save = channels;
-                    tags_to_save = tags;
+                    for (uint8_t i = 1; i<17; ++i) {
+                        chn_list.push_back(i);
+                    }
                 }
-                */
-                std::vector<bool> idx (channels.size());
                 if (tagjob->channels.size()!=0){
                     for (size_t i = 0; i < channels.size(); ++i) {
-                        if (std::find(tagjob->channels.begin(), tagjob->channels.end(), channels[i]) != tagjob->channels.end()) {
+                        if (std::find(chn_list.begin(), chn_list.end(), channels[i]) != chn_list.end()) {
                             chans_to_save.emplace_back(channels[i]);
                             tags_to_save.emplace_back(tags[i]);
                         }
                     }
-                } else {
-                    chans_to_save = channels;
-                    tags_to_save = tags;
                 }
-
-                //chans_to_save = channels;
-                //tags_to_save = tags;
-                std::cout << "trunc chan size: " << chans_to_save.size() << std::endl;
-                std::cout << "trunc tags size: " << tags_to_save.size() << std::endl;
 
                 //write compressed capnproto message
                 ::capnp::MallocMessageBuilder message;
