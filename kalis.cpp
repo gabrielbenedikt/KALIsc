@@ -425,7 +425,7 @@ int tt_open() {
         tagger.Open();
     } catch (TimeTag::Exception & ex)	{
         printf ("\nErr: %s\n with errno %d\n", ex.GetMessageText().c_str(), errno);
-        printf (libusb_strerror(errno));
+        printf ("%s", libusb_strerror(errno));
         return errno;
     }
 
@@ -440,7 +440,7 @@ int tt_close() {
         tagger.Close();
     } catch (TimeTag::Exception & ex)	{
         printf ("\nErr: %s\n with errno %d\n", ex.GetMessageText().c_str(), errno);
-        printf (libusb_strerror(errno));
+        printf ("%s", libusb_strerror(errno));
         return errno;
     }
 
