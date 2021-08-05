@@ -208,12 +208,6 @@ uint64_t add_job(const Job::Reader &reader) {
     jobstruct job;
 
     uint64_t id = get_new_id();
-    //that's the newest ID in the database. Check if there are newer IDs in jobqueue
-    uint64_t id_maxqueue = 0;
-    for (const jobstruct &j : jobs) {
-        id_maxqueue = id_maxqueue > j.id ? id_maxqueue : j.id;
-    }
-    id = std::max(id, id_maxqueue) + 1;
 
     job.id=id;
 
@@ -287,7 +281,7 @@ int main() {
             menu();
         }
     } else {
-        tt_set_frequency_generator_hz(10000);
+        tt_set_frequency_generator_hz(100000);
         start_tag_server();
     }
     return 0;
@@ -1448,7 +1442,7 @@ void process_tags() {
                             break;
 
                         case 2: {
-
+#if 0
                             uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution); //convert coincidence window from ns to internal ticks
                             std::vector<long long int> chn1, chn2;
                             for (size_t i = 0; i < chans.size(); ++i) {
@@ -1481,6 +1475,34 @@ void process_tags() {
                             }
 
                             job->events[i] += cnt;
+#endif
+#if 1
+                            // round tags to resolution bins
+                            uint16_t wnd = ceil(job->window * pow(10,-9) / tagger_info.resolution);
+                            std::vector<long long int> chn1, chn2;
+                            for (size_t i = 0; i < chans.size(); ++i) {
+                                if (chans[i] == pat_chans[0]) {
+                                    chn1.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                } else if (chans[i] == pat_chans[1]) {
+                                    chn2.push_back(((tags[i] + wnd - 1) / wnd) * wnd);
+                                }
+                            }
+
+                            //find coincidences
+                            std::vector<long long int> cc_tags = {};
+                            cc_tags.reserve(4096);
+                            if (chn1.size() > chn2.size()) {
+                                set_intersection(chn1.begin(), chn1.end(),
+                                                 chn2.begin(), chn2.end(),
+                                                 std::back_inserter(cc_tags));
+                            } else {
+                                set_intersection(chn2.begin(), chn2.end(),
+                                                 chn1.begin(), chn1.end(),
+                                                 std::back_inserter(cc_tags));
+                            }
+
+                            job->events[i] += cc_tags.size();
+#endif
                         }
                         break;
                         case 3:
