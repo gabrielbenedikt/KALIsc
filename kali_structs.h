@@ -5,6 +5,13 @@
 #include <vector>
 #include <string>
 
+enum returncodes: int8_t {
+    UNKNOWN_ERROR   = -3,
+    NOT_FOUND       = -2,
+    NOT_DONE        = -1,
+    DONE            =  0
+};
+
 struct tagger_info_struct {
     int fpga_version;
     float resolution;

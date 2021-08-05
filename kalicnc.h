@@ -29,29 +29,10 @@
 #include <ncurses.h>
 
 #include "helpers.h"
-
+#include "kali_structs.h"
 
 std::string ip = "10.42.0.13";
 uint16_t port = 37397;
-
-enum returncodes: int8_t {
-    UNKNOWN_ERROR   = -3,
-    NOT_FOUND       = -2,
-    NOT_DONE        = -1,
-    DONE            =  0
-};
-
-struct jobstruct {
-    uint64_t id = 0;                                // numeric ID of the job
-    std::vector<unsigned short int> patterns;       // list of bitmasks of coincidence patterns client is interested in
-    std::vector<unsigned long long int> events;     // vector holding total events in of corresponding patterns
-    unsigned short int window;                      // clients coincidence window
-    uint64_t duration;                              // Duration during which thise events occurred (in internal ticks)
-    double duration_s;                              // Duration during which thise events occurred (in seconds)
-    unsigned long long int start_tag;               // first tag in job
-    unsigned long long int stop_tag;                // last tag in job
-    bool finished = false;                          // true if job completed
-};
 
 uint64_t submit_job(double duration);
 int get_result(uint64_t id, jobstruct &job);

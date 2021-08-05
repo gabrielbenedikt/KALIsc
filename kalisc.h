@@ -70,14 +70,6 @@ std::mutex tagbuf_mtx;
 // database
 kalidb DB;
 
-// rpc return codes
-enum returncodes: int8_t {
-    UNKNOWN_ERROR   = -3,
-    NOT_FOUND       = -2,
-    NOT_DONE        = -1,
-    DONE            =  0
-};
-
 //
 
 std::vector<jobstruct> jobs;
