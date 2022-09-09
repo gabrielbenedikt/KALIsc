@@ -31,7 +31,7 @@
 #include "helpers.h"
 #include "kali_structs.h"
 
-std::string ip = "10.42.0.13";
+std::string ip = "10.42.0.104";
 uint16_t port = 37397;
 
 uint64_t submit_job(double duration);

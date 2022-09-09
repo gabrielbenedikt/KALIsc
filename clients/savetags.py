@@ -29,9 +29,9 @@ async def request_tags(client, fn, chans, duration):
     tagpromise = tagrequest.send()
     tagresult = await tagpromise.a_wait()
     
-    id = np.array(tagresult.jobid)
+    job_id = np.array(tagresult.jobid)
     
-    print("got jobid", id)
+    print("got jobid", job_id)
     
 async def main(host):
     ip = "10.42.0.13"
